@@ -96,7 +96,7 @@ describe("Given I am connected as an employee", () => {
 });
 
 // test d'intégration GET
-describe("Given I am a user connected as Admin", () => {
+describe("Given I am a user connected as Admin and I call getBills function", () => {
   describe("When I call getBills function", () => {
     // Helper function to create an error
     const createErrorStore = (errorMessage) => ({
