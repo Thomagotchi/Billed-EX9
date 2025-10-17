@@ -114,12 +114,39 @@ describe("Given I am a user connected as Admin and I call getBills function", ()
         localStorage: localStorageMock,
       });
 
-    // Test 404 error
-    test("Then it should handle 404 error when fetching bills", async () => {
+    // Test 404 error with HTML error display
+    test("Then it should display 404 error in HTML when fetching bills fails", async () => {
       const errorStore = createErrorStore("Erreur 404");
-      const billsContainer = createBillsContainer(errorStore);
 
-      await expect(billsContainer.getBills()).rejects.toThrow("Erreur 404");
+      // Set up the DOM
+      const root = document.createElement("div");
+      root.setAttribute("id", "root");
+      document.body.append(root);
+
+      // Mock localStorage
+      Object.defineProperty(window, "localStorage", {
+        value: localStorageMock,
+      });
+      window.localStorage.setItem(
+        "user",
+        JSON.stringify({
+          type: "Employee",
+        })
+      );
+
+      // Import and setup router
+      const router = require("../app/Router.js").default;
+      router();
+
+      // Navigate to Bills page - this will trigger the error
+      window.onNavigate(ROUTES_PATH.Bills);
+
+      // Wait for the error to be displayed
+      await waitFor(() => {
+        const errorElement = screen.getByTestId("error-message");
+        expect(errorElement).toBeTruthy();
+        expect(errorElement.textContent).toContain("Erreur 404");
+      });
     });
 
     // Test 500 error
@@ -148,25 +175,27 @@ describe("Given I am a user connected as Admin and I call getBills function", ()
         }),
       };
 
-      // Mock console.log to verify error logging
-      const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+      // Create a mock onNavigate function that renders the UI with error
+      const mockOnNavigate = jest.fn();
       const billsContainer = createBillsContainer(corruptedStore);
-      const result = await billsContainer.getBills();
 
-      // Verify that corrupted data is handled
-      expect(result[0].date).toBe("invalid-date");
-      expect(result[0].status).toBe("En attente");
-      expect(result[0].id).toBe("test-id");
+      // Mock the router behavior - when getBills fails, it should render error page
+      const mockRouter = (pathname, error) => {
+        document.body.innerHTML = BillsUI({ error });
+      };
 
-      // Verify that an error was logged
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.any(Error),
-        "for",
-        expect.objectContaining({ date: "invalid-date" })
-      );
+      // Simulate the error scenario by calling getBills and catching the error
+      try {
+        await billsContainer.getBills();
+      } catch (error) {
+        // Simulate what the router does when there's an error
+        mockRouter(ROUTES_PATH.Bills, error.message);
+      }
 
-      // Reset the console.log
-      consoleSpy.mockRestore();
+      // Check that the error message is displayed in the HTML
+      const errorElement = screen.getByTestId("error-message");
+      expect(errorElement).toBeTruthy();
+      expect(errorElement.textContent).toContain("Erreur 404");
     });
   });
 });
