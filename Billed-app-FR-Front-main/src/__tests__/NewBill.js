@@ -4,28 +4,21 @@
 
 import { fireEvent, screen, waitFor } from "@testing-library/dom";
 import { localStorageMock } from "../__mocks__/localStorage.js";
+import mockStore from "../__mocks__/store";
+import router from "../app/Router";
+import { ROUTES_PATH } from "../constants/routes";
 import NewBill from "../containers/NewBill.js";
 import NewBillUI from "../views/NewBillUI.js";
-
-// Mock the store
-const mockStore = {
-  bills() {
-    return {
-      create: jest.fn().mockResolvedValue({
-        fileUrl: "https://test.com/file.jpg",
-        key: "123",
-      }),
-      update: jest.fn().mockResolvedValue({}),
-    };
-  },
-};
 
 // Mock navigation function
 const mockOnNavigate = jest.fn();
 
 describe("Given I am connected as an employee", () => {
   beforeEach(() => {
-    // Setup localStorage mock
+    // Clean up DOM
+    document.body.innerHTML = "";
+
+    // Setup mock before each test
     Object.defineProperty(window, "localStorage", {
       value: localStorageMock,
     });
@@ -33,13 +26,21 @@ describe("Given I am connected as an employee", () => {
       "user",
       JSON.stringify({
         type: "Employee",
+        email: "test@example.com",
       })
     );
 
-    // Reset mocks
+    // Reset mock functions
     mockOnNavigate.mockClear();
-    mockStore.bills().create.mockClear();
-    mockStore.bills().update.mockClear();
+
+    // Mock the store methods
+    jest.spyOn(mockStore, "bills").mockReturnValue({
+      create: jest.fn().mockResolvedValue({
+        fileUrl: "https://test.com/file.jpg",
+        key: "123",
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    });
   });
 
   describe("When I am on NewBill Page", () => {
@@ -47,7 +48,7 @@ describe("Given I am connected as an employee", () => {
       const html = NewBillUI();
       document.body.innerHTML = html;
 
-      // Check if all form elements are present
+      // Check if all form inputs are present on the page
       expect(screen.getByTestId("form-new-bill")).toBeTruthy();
       expect(screen.getByTestId("expense-type")).toBeTruthy();
       expect(screen.getByTestId("expense-name")).toBeTruthy();
@@ -189,7 +190,10 @@ describe("Given I am connected as an employee", () => {
 
       // Check that update was called and navigation occurred
       await waitFor(() => {
-        expect(mockStore.bills().update).toHaveBeenCalled();
+        expect(mockStore.bills().update).toHaveBeenCalledWith({
+          data: expect.stringContaining('"email":"test@example.com"'),
+          selector: "123",
+        });
         expect(mockOnNavigate).toHaveBeenCalled();
       });
     });
@@ -247,6 +251,74 @@ describe("Given I am connected as an employee", () => {
           data: expect.stringContaining('"pct":20'),
           selector: "123",
         });
+      });
+    });
+  });
+  // test d'intégration GET
+  describe("Given I am a user connected as Employee", () => {
+    describe("When I navigate to NewBill", () => {
+      test("fetches NewBill page successfully", async () => {
+        document.body.innerHTML = "";
+
+        // Set localStorage
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ type: "Employee", email: "test@example.com" })
+        );
+        const root = document.createElement("div");
+        root.setAttribute("id", "root");
+        document.body.append(root);
+        router();
+        // Navigate to NewBill page
+        window.onNavigate(ROUTES_PATH.NewBill);
+        // Wait for the form
+        await waitFor(() => screen.getByTestId("form-new-bill"));
+        // Check that the form is displayed
+        expect(screen.getByTestId("form-new-bill")).toBeTruthy();
+      });
+    });
+
+    describe("When an error occurs on API", () => {
+      beforeEach(() => {
+        document.body.innerHTML = "";
+
+        Object.defineProperty(window, "localStorage", {
+          value: localStorageMock,
+        });
+        window.localStorage.setItem(
+          "user",
+          JSON.stringify({
+            type: "Employee",
+            email: "test@example.com",
+          })
+        );
+        const root = document.createElement("div");
+        root.setAttribute("id", "root");
+        document.body.appendChild(root);
+        router();
+      });
+
+      // Since NewBill doesn't have error handling like Dashboard, we test that the form still loads
+      test("fetches NewBill page and fails with 404 message error", async () => {
+        jest.spyOn(mockStore, "bills").mockReturnValue({
+          create: jest.fn().mockRejectedValue(new Error("Erreur 404")),
+          update: jest.fn().mockResolvedValue({}),
+        });
+        window.onNavigate(ROUTES_PATH.NewBill);
+        await new Promise(process.nextTick);
+        await waitFor(() => screen.getByTestId("form-new-bill"));
+        expect(screen.getByTestId("form-new-bill")).toBeTruthy();
+      });
+
+      test("fetches NewBill page and fails with 500 message error", async () => {
+        jest.spyOn(mockStore, "bills").mockReturnValue({
+          create: jest.fn().mockRejectedValue(new Error("Erreur 500")),
+          update: jest.fn().mockResolvedValue({}),
+        });
+        window.onNavigate(ROUTES_PATH.NewBill);
+        await new Promise(process.nextTick);
+        await waitFor(() => screen.getByTestId("form-new-bill"));
+        expect(screen.getByTestId("form-new-bill")).toBeTruthy();
       });
     });
   });
