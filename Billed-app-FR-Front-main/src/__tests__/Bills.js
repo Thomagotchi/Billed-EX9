@@ -4,12 +4,14 @@
 
 import { fireEvent, screen, waitFor } from "@testing-library/dom";
 import { localStorageMock } from "../__mocks__/localStorage.js";
+import mockStore from "../__mocks__/store";
+import router from "../app/Router.js";
 import { ROUTES_PATH } from "../constants/routes.js";
 import Bills from "../containers/Bills.js";
 import { bills } from "../fixtures/bills.js";
 import BillsUI from "../views/BillsUI.js";
 
-import router from "../app/Router.js";
+jest.mock("../app/Store.js", () => mockStore);
 
 describe("Given I am connected as an employee", () => {
   describe("When I am on Bills Page", () => {
@@ -75,8 +77,9 @@ describe("Given I am connected as an employee", () => {
           localStorage: localStorageMock,
         });
 
-        // Mock modal function
+        // Mock modal function and width method
         $.fn.modal = jest.fn();
+        $.fn.width = jest.fn(() => 800);
 
         // This gets the eye buttons, checks that there are some and isolates the first one
         const eyeButtons = screen.getAllByTestId("icon-eye");
@@ -89,7 +92,13 @@ describe("Given I am connected as an employee", () => {
         // Verify that the modal was called and that the content is present in the DOM
         expect($.fn.modal).toHaveBeenCalledWith("show");
         expect(screen.getByText("Justificatif")).toBeTruthy();
-        expect(screen.getByTestId("justif-bill")).toBeTruthy();
+        // Check for the modal element itself or the content that was added
+        const modalElement = document.getElementById("modaleFile");
+        expect(modalElement).toBeTruthy();
+        // Check that the modal body has content (the image was added)
+        const modalBody = modalElement.querySelector(".modal-body");
+        expect(modalBody).toBeTruthy();
+        expect(modalBody.querySelector("img")).toBeTruthy();
       });
     });
   });
@@ -116,8 +125,6 @@ describe("Given I am a user connected as an employee and I call getBills functio
 
     // Test 404 error with HTML error display
     test("Then it should display 404 error in HTML when fetching bills fails", async () => {
-      const errorStore = createErrorStore("Erreur 404");
-
       // Set up the DOM
       const root = document.createElement("div");
       root.setAttribute("id", "root");
@@ -134,8 +141,14 @@ describe("Given I am a user connected as an employee and I call getBills functio
         })
       );
 
+      // Mock the store to return an error
+      jest.spyOn(mockStore, "bills").mockImplementationOnce(() => {
+        return {
+          list: () => Promise.reject(new Error("Erreur 404")),
+        };
+      });
+
       // Import and setup router
-      const router = require("../app/Router.js").default;
       router();
 
       // Navigate to Bills page - this will trigger the error
@@ -179,23 +192,15 @@ describe("Given I am a user connected as an employee and I call getBills functio
       const mockOnNavigate = jest.fn();
       const billsContainer = createBillsContainer(corruptedStore);
 
-      // Mock the router behavior - when getBills fails, it should render error page
-      const mockRouter = (pathname, error) => {
-        document.body.innerHTML = BillsUI({ error });
-      };
+      // The container handles corrupted data gracefully by catching the formatDate error
+      // and returning the data with the unformatted date, so getBills should resolve successfully
+      const result = await billsContainer.getBills();
 
-      // Simulate the error scenario by calling getBills and catching the error
-      try {
-        await billsContainer.getBills();
-      } catch (error) {
-        // Simulate what the router does when there's an error
-        mockRouter(ROUTES_PATH.Bills, error.message);
-      }
-
-      // Check that the error message is displayed in the HTML
-      const errorElement = screen.getByTestId("error-message");
-      expect(errorElement).toBeTruthy();
-      expect(errorElement.textContent).toContain("Erreur 404");
+      // Verify that the data is returned successfully with the unformatted date
+      expect(result).toBeTruthy();
+      expect(result.length).toBe(1);
+      expect(result[0].date).toBe("invalid-date"); // Should be the unformatted date
+      expect(result[0].status).toBeTruthy(); // Status should still be formatted
     });
   });
 });

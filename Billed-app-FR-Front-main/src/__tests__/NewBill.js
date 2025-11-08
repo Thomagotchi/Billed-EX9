@@ -3,7 +3,6 @@
  */
 
 import { fireEvent, screen, waitFor } from "@testing-library/dom";
-import { localStorageMock } from "../__mocks__/localStorage.js";
 import mockStore from "../__mocks__/store";
 import router from "../app/Router";
 import { ROUTES_PATH } from "../constants/routes";
@@ -19,9 +18,27 @@ describe("Given I am connected as an employee", () => {
     document.body.innerHTML = "";
 
     // Setup mock before each test
+    const store = {};
+    const customLocalStorage = {
+      getItem: function (key) {
+        return store[key] || null;
+      },
+      setItem: function (key, value) {
+        store[key] = value;
+      },
+      clear: function () {
+        Object.keys(store).forEach((key) => delete store[key]);
+      },
+      removeItem: function (key) {
+        delete store[key];
+      },
+    };
+
     Object.defineProperty(window, "localStorage", {
-      value: localStorageMock,
+      value: customLocalStorage,
+      writable: true,
     });
+
     window.localStorage.setItem(
       "user",
       JSON.stringify({
@@ -260,6 +277,27 @@ describe("Given I am connected as an employee", () => {
       test("fetches NewBill page successfully", async () => {
         document.body.innerHTML = "";
 
+        // Setup localStorage mock
+        const store = {};
+        const customLocalStorage = {
+          getItem: function (key) {
+            return store[key] || null;
+          },
+          setItem: function (key, value) {
+            store[key] = value;
+          },
+          clear: function () {
+            Object.keys(store).forEach((key) => delete store[key]);
+          },
+          removeItem: function (key) {
+            delete store[key];
+          },
+        };
+        Object.defineProperty(window, "localStorage", {
+          value: customLocalStorage,
+          writable: true,
+        });
+
         // Set localStorage
         localStorage.setItem(
           "user",
@@ -282,8 +320,25 @@ describe("Given I am connected as an employee", () => {
       beforeEach(() => {
         document.body.innerHTML = "";
 
+        // Setup localStorage mock
+        const store = {};
+        const customLocalStorage = {
+          getItem: function (key) {
+            return store[key] || null;
+          },
+          setItem: function (key, value) {
+            store[key] = value;
+          },
+          clear: function () {
+            Object.keys(store).forEach((key) => delete store[key]);
+          },
+          removeItem: function (key) {
+            delete store[key];
+          },
+        };
         Object.defineProperty(window, "localStorage", {
-          value: localStorageMock,
+          value: customLocalStorage,
+          writable: true,
         });
         window.localStorage.setItem(
           "user",
